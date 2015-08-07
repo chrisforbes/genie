@@ -51,6 +51,16 @@ HEADER = cons.Struct('header',
     cons.Array(lambda ctx: ctx['number_of_tables'], TableAdapter(TABLE)),
 )
 
+# larger variant of the header used for Star Wars: Galactic Battlegrounds DRSs
+SWGB_HEADER = cons.Struct('header',
+    cons.String('copyright', 60, padchar='\0'),
+    cons.String('version', 4),
+    cons.String('file_type', 12, padchar='\0'),
+    cons.ULInt32('number_of_tables'),
+    cons.ULInt32('offset'),
+    cons.Array(lambda ctx: ctx['number_of_tables'], TableAdapter(TABLE)),
+)
+
 def get_file_extension(resource_type):
     """
         get the embedded file extension from the genie resource type (a 4-byte number).
@@ -106,7 +116,12 @@ class DRSFile(object):
     """
     def __init__(self, stream):
         self.stream = stream
-        self.header = HEADER._parse(stream, cons.Container(drs_file=self))
+        # record the current stream position in case we have to backtrack.
+        pos = stream.tell()
+        self.header = SWGB_HEADER._parse(stream, cons.Container(drs_file=self))
+        if not self.header.file_type.startswith('swbg'):
+            stream.seek(pos)
+            self.header = HEADER._parse(stream, cons.Container(drs_file=self))
 
     @property
     def tables(self):
